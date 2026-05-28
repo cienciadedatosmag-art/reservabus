@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ReservaBus · Selección de Asientos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* ─── Variables ───────────────────────────────────── */
+    :root {
+      --bg:          #0b0d14;
+      --surface:     #13151f;
+      --surface2:    #1c1f2e;
+      --border:      rgba(255,255,255,0.07);
+      --accent:      #e8c547;
+      --accent-dim:  rgba(232,197,71,0.15);
+
+      --seat-avail:  #22c55e;
+      --seat-avail-glow: rgba(34,197,94,0.35);
+      --seat-sel:    #e8c547;
+      --seat-sel-glow: rgba(232,197,71,0.45);
+      --seat-taken:  #ef4444;
+      --seat-taken-glow: rgba(239,68,68,0.25);
+
+      --text:        #f0f2f8;
+      --text-muted:  #6b7280;
+      --radius:      14px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    /* ─── Fondo animado ───────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 60% 40% at 20% 10%, rgba(232,197,71,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 50% at 80% 90%, rgba(34,197,94,0.04) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── Header ──────────────────────────────────────── */
+    header {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 900px;
+      padding: 40px 24px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 1.5rem;
+      letter-spacing: -0.03em;
+    }
+    .logo span { color: var(--accent); }
+
+    .route-badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .route-badge strong { color: var(--text); }
+
+
+
+    /* ─── Main layout ─────────────────────────────────── */
+    main {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 900px;
+      padding: 28px 24px 60px;
+      display: grid;
+      grid-template-columns: 1fr 300px;
+      gap: 28px;
+      align-items: start;
+    }
+
+    @media (max-width: 740px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Bus container ───────────────────────────────── */
+    .bus-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 32px 32px 20px 20px;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 32px 64px rgba(0,0,0,0.5);
+    }
+
+    /* Cabina del conductor */
+    .bus-front {
+      background: linear-gradient(160deg, #1a1d2a 0%, #12141e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 24px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .driver-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .driver-icon {
+      width: 36px; height: 36px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+    }
+    .driver-label {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+    .steering {
+      width: 40px; height: 40px;
+      border: 2px solid rgba(255,255,255,0.12);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem;
+      animation: spin 12s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Puerta */
+    .bus-door {
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 24px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .door-icon { font-size: 1rem; }
+
+    /* Grid de asientos */
+    .seat-grid {
+      padding: 20px 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .seat-row {
+      display: grid;
+      grid-template-columns: 24px repeat(2, 1fr) 28px repeat(2, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .row-num {
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+
+    .aisle { /* columna pasillo */ }
+
+    /* ─── ASIENTO ─────────────────────────────────────── */
+    .seat {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 10px 10px 8px 8px;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+      outline: none;
+      border: none;
+      padding: 0;
+      overflow: visible;
+    }
+
+    /* Respaldo del asiento */
+    .seat::before {
+      content: '';
+      position: absolute;
+      top: -7px;
+      left: 6px;
+      right: 6px;
+      height: 8px;
+      border-radius: 4px 4px 0 0;
+      transition: background 0.2s;
+    }
+
+    /* Número del asiento */
+    .seat-num {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      pointer-events: none;
+      transition: color 0.2s;
+    }
+
+    /* ── Estado: DISPONIBLE ── */
+    .seat.available {
+      background: rgba(34,197,94,0.12);
+      border: 1.5px solid rgba(34,197,94,0.4);
+    }
+    .seat.available::before {
+      background: rgba(34,197,94,0.25);
+    }
+    .seat.available .seat-num { color: var(--seat-avail); }
+    .seat.available:hover {
+      transform: translateY(-3px) scale(1.08);
+      box-shadow: 0 8px 20px var(--seat-avail-glow);
+      background: rgba(34,197,94,0.22);
+      border-color: var(--seat-avail);
+    }
+
+    /* ── Estado: SELECCIONADO ── */
+    .seat.selected {
+      background: rgba(232,197,71,0.18);
+      border: 1.5px solid var(--seat-sel);
+      box-shadow: 0 0 16px var(--seat-sel-glow);
+      animation: pulse-sel 2s ease-in-out infinite;
+    }
+    .seat.selected::before {
+      background: rgba(232,197,71,0.35);
+    }
+    .seat.selected .seat-num { color: var(--seat-sel); }
+    @keyframes pulse-sel {
+      0%, 100% { box-shadow: 0 0 12px var(--seat-sel-glow); }
+      50%       { box-shadow: 0 0 24px rgba(232,197,71,0.6); }
+    }
+
+    /* ── Estado: OCUPADO ── */
+    .seat.taken {
+      background: rgba(239,68,68,0.08);
+      border: 1.5px solid rgba(239,68,68,0.3);
+      cursor: not-allowed;
+      filter: saturate(0.6);
+    }
+    .seat.taken::before {
+      background: rgba(239,68,68,0.15);
+    }
+    .seat.taken .seat-num { color: rgba(239,68,68,0.6); }
+    .seat.taken:hover { transform: none; }
+
+    /* ── Último asiento (trasero largo) ── */
+    .back-row {
+      display: grid;
+      grid-template-columns: 24px repeat(5, 1fr);
+      gap: 8px;
+      align-items: center;
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px dashed var(--border);
+    }
+
+    /* ─── Panel lateral ───────────────────────────────── */
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .panel-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+
+    .panel-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    /* Leyenda */
+    .legend { display: flex; flex-direction: column; gap: 10px; }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.83rem;
+      color: var(--text-muted);
+    }
+    .legend-dot {
+      width: 28px; height: 22px;
+      border-radius: 6px 6px 5px 5px;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .legend-dot::before {
+      content: '';
+      position: absolute;
+      top: -5px; left: 4px; right: 4px;
+      height: 5px;
+      border-radius: 3px 3px 0 0;
+    }
+    .legend-dot.avail {
+      background: rgba(34,197,94,0.18);
+      border: 1.5px solid rgba(34,197,94,0.5);
+    }
+    .legend-dot.avail::before { background: rgba(34,197,94,0.3); }
+    .legend-dot.sel {
+      background: rgba(232,197,71,0.2);
+      border: 1.5px solid var(--seat-sel);
+    }
+    .legend-dot.sel::before { background: rgba(232,197,71,0.4); }
+    .legend-dot.taken {
+      background: rgba(239,68,68,0.1);
+      border: 1.5px solid rgba(239,68,68,0.35);
+    }
+    .legend-dot.taken::before { background: rgba(239,68,68,0.2); }
+
+    /* Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .stat-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-val {
+      font-family: 'Syne', sans-serif;
+      font-size: 1.6rem;
+      font-weight: 800;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+    .stat-val.green { color: var(--seat-avail); }
+    .stat-val.yellow { color: var(--seat-sel); }
+    .stat-val.red { color: var(--seat-taken); }
+    .stat-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* Selección resumen */
+    .selected-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      min-height: 36px;
+    }
+    .sel-tag {
+      background: var(--accent-dim);
+      border: 1px solid rgba(232,197,71,0.3);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--accent);
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:scale(0.85); } to { opacity:1; transform:scale(1); } }
+
+    .no-selection {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+
+
+    /* Botón reservar */
+    .btn-reserve {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #0b0d14;
+      border: none;
+      border-radius: 10px;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.2s ease, opacity 0.2s;
+    }
+    .btn-reserve:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(232,197,71,0.35);
+    }
+    .btn-reserve:active:not(:disabled) { transform: translateY(0); }
+    .btn-reserve:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 12px 24px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      transition: transform 0.4s cubic-bezier(.34,1.56,.64,1), opacity 0.3s;
+      opacity: 0;
+      z-index: 100;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    #toast.success { border-color: rgba(34,197,94,0.4); color: var(--seat-avail); }
+    #toast.error   { border-color: rgba(239,68,68,0.4); color: var(--seat-taken); }
+    #toast.warn    { border-color: rgba(232,197,71,0.4); color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<!-- ───────── HEADER ───────── -->
+<header>
+  <div class="logo">Reserva<span>Bus</span></div>
+  <div class="route-badge">
+    <strong>La Valla</strong> → <strong>San Juan de los Lagos</strong>
+  </div>
+</header>
+
+
+
+<!-- ───────── MAIN ───────── -->
+<main>
+
+  <!-- BUS -->
+  <div class="bus-wrap">
+
+    <!-- Cabina -->
+    <div class="bus-front">
+      <div class="driver-area">
+        <div class="driver-icon">🧑‍✈️</div>
+        <div class="driver-label">Conductor</div>
+      </div>
+      <div class="steering">🚌</div>
+    </div>
+
+    <!-- Puerta -->
+    <div class="bus-door">
+      <span class="door-icon">🚪</span>
+      Entrada / Salida
+    </div>
+
+    <!-- Grid de asientos -->
+    <div class="seat-grid" id="seatGrid">
+      <!-- Generado por JS -->
+    </div>
+
+  </div><!-- /.bus-wrap -->
+
+  <!-- PANEL -->
+  <div class="side-panel">
+
+    <!-- Leyenda -->
+    <div class="panel-card">
+      <div class="panel-title">Leyenda</div>
+      <div class="legend">
+        <div class="legend-item">
+          <div class="legend-dot avail"></div>
+          Disponible
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot sel"></div>
+          Tu selección
+        </div>
+        <div class="legend-item">
+          <div class="legend-dot taken"></div>
+          Ocupado
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="panel-card">
+      <div class="panel-title">Disponibilidad</div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val green" id="statAvail">48</div>
+          <div class="stat-label">Libres</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val red" id="statTaken">0</div>
+          <div class="stat-label">Ocupados</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val yellow" id="statSel">0</div>
+          <div class="stat-label">Selec.</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val" style="color:var(--text-muted)" id="statTotal">48</div>
+          <div class="stat-label">Total</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Selección actual -->
+    <div class="panel-card">
+      <div class="panel-title">Tus asientos</div>
+      <div class="selected-list" id="selectedList">
+        <span class="no-selection">Ningún asiento seleccionado</span>
+      </div>
+    </div>
+
+    <!-- Reservar -->
+    <div class="panel-card">
+      <button class="btn-reserve" id="btnReserve" disabled>
+        Confirmar Reserva
+      </button>
+    </div>
+
+  </div><!-- /.side-panel -->
+
+</main>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   RESERVABUS · Lógica con backend compartido
+   El estado se obtiene del servidor (server.js) y se
+   sincroniza automáticamente cada 5 segundos (polling),
+   por lo que todos los usuarios ven el mismo estado en
+   tiempo casi real.
+   ═══════════════════════════════════════════════════════════ */
+
+const TOTAL_SEATS = 48;
+const API         = `http://${window.location.hostname}:3000/api`;
+const POLL_MS     = 5000;
+
+// ── Estado local ─────────────────────────────────────────────
+let takenSeats   = new Set();     // reservados en el servidor
+let selectedSeats = new Set();    // selección pendiente del usuario actual
+
+// ── Referencias DOM ──────────────────────────────────────────
+const grid         = document.getElementById('seatGrid');
+const btnReserve   = document.getElementById('btnReserve');
+const selectedList = document.getElementById('selectedList');
+const statAvail    = document.getElementById('statAvail');
+const statTaken    = document.getElementById('statTaken');
+const statSel      = document.getElementById('statSel');
+const toast        = document.getElementById('toast');
+
+// ── Obtener asientos ocupados del servidor ───────────────────
+async function fetchTaken() {
+  try {
+    const res  = await fetch(`${API}/seats`);
+    const data = await res.json();
+    const newTaken = new Set(data.taken);
+
+    // Detectar si cambió algo desde la última consulta
+    const changed = [...newTaken].some(s => !takenSeats.has(s)) ||
+                    [...takenSeats].some(s => !newTaken.has(s));
+
+    takenSeats = newTaken;
+
+    // Limpiar selección local si otro usuario tomó algún asiento
+    let cleaned = false;
+    for (const s of [...selectedSeats]) {
+      if (takenSeats.has(s)) { selectedSeats.delete(s); cleaned = true; }
+    }
+
+    if (changed || cleaned) {
+      renderAllSeats();
+      updatePanel();
+      if (cleaned) showToast('⚠️ Un asiento que tenías seleccionado ya fue reservado.', 'warn');
+    }
+  } catch {
+    showToast('❌ Sin conexión al servidor. Reintentando...', 'error');
+  }
+}
+
+// ── Polling: sincronización automática ───────────────────────
+setInterval(fetchTaken, POLL_MS);
+
+// ── Distribución de asientos ─────────────────────────────────
+function buildGrid() {
+  grid.innerHTML = '';
+  let seatNum = 1;
+
+  for (let row = 1; row <= 11; row++) {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'seat-row';
+
+    const rowNum = document.createElement('div');
+    rowNum.className = 'row-num';
+    rowNum.textContent = row;
+    rowEl.appendChild(rowNum);
+
+    ['A','B',null,'C','D'].forEach(col => {
+      if (col === null) {
+        const aisle = document.createElement('div');
+        aisle.className = 'aisle';
+        rowEl.appendChild(aisle);
+      } else {
+        rowEl.appendChild(createSeat(seatNum++));
+      }
+    });
+
+    grid.appendChild(rowEl);
+  }
+
+  // Fila trasera: 5 asientos
+  const backRow = document.createElement('div');
+  backRow.className = 'back-row';
+  const backNum = document.createElement('div');
+  backNum.className = 'row-num';
+  backNum.textContent = 12;
+  backRow.appendChild(backNum);
+  for (let i = 0; i < 5; i++) backRow.appendChild(createSeat(seatNum++));
+  grid.appendChild(backRow);
+}
+
+// ── Crea elemento de asiento ─────────────────────────────────
+function createSeat(id) {
+  const btn = document.createElement('button');
+  btn.className = 'seat';
+  btn.dataset.id = id;
+  btn.setAttribute('aria-label', `Asiento ${id}`);
+
+  const num = document.createElement('span');
+  num.className = 'seat-num';
+  num.textContent = id;
+  btn.appendChild(num);
+
+  btn.addEventListener('click', () => handleSeatClick(id));
+  return btn;
+}
+
+// ── Aplica estilos según estado ──────────────────────────────
+function updateSeatEl(id) {
+  const btn = document.querySelector(`.seat[data-id="${id}"]`);
+  if (!btn) return;
+
+  btn.classList.remove('available','selected','taken');
+
+  if (takenSeats.has(id)) {
+    btn.classList.add('taken');
+    btn.disabled = true;
+    btn.title = 'Asiento ocupado';
+  } else if (selectedSeats.has(id)) {
+    btn.classList.add('selected');
+    btn.disabled = false;
+    btn.title = `Asiento ${id} — clic para deseleccionar`;
+  } else {
+    btn.classList.add('available');
+    btn.disabled = false;
+    btn.title = `Asiento ${id} — clic para seleccionar`;
+  }
+}
+
+function renderAllSeats() {
+  for (let i = 1; i <= TOTAL_SEATS; i++) updateSeatEl(i);
+}
+
+// ── Click en asiento ─────────────────────────────────────────
+function handleSeatClick(id) {
+  if (takenSeats.has(id)) {
+    showToast('Este asiento ya está ocupado.', 'error');
+    return;
+  }
+  if (selectedSeats.has(id)) {
+    selectedSeats.delete(id);
+    showToast(`Asiento ${id} deseleccionado.`, 'warn');
+  } else {
+    selectedSeats.add(id);
+    showToast(`Asiento ${id} seleccionado ✓`, 'success');
+  }
+  updateSeatEl(id);
+  updatePanel();
+}
+
+// ── Panel lateral ────────────────────────────────────────────
+function updatePanel() {
+  const taken = takenSeats.size;
+  const sel   = selectedSeats.size;
+  const avail = TOTAL_SEATS - taken - sel;
+
+  statAvail.textContent = avail;
+  statTaken.textContent = taken;
+  statSel.textContent   = sel;
+
+  selectedList.innerHTML = '';
+  if (sel === 0) {
+    selectedList.innerHTML = '<span class="no-selection">Ningún asiento seleccionado</span>';
+  } else {
+    [...selectedSeats].sort((a,b) => a-b).forEach(id => {
+      const tag = document.createElement('div');
+      tag.className = 'sel-tag';
+      tag.textContent = `N° ${id}`;
+      selectedList.appendChild(tag);
+    });
+  }
+
+  btnReserve.disabled = sel === 0;
+}
+
+// ── Confirmar reserva (envía al servidor) ────────────────────
+btnReserve.addEventListener('click', async () => {
+  if (selectedSeats.size === 0) return;
+
+  btnReserve.disabled = true;
+  btnReserve.textContent = 'Procesando...';
+
+  try {
+    const res  = await fetch(`${API}/reserve`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ seats: [...selectedSeats] })
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      // Conflicto: algún asiento ya fue tomado
+      showToast(`⚠️ ${data.error}`, 'error');
+      await fetchTaken(); // sincronizar inmediatamente
+    } else {
+      takenSeats   = new Set(data.taken);
+      selectedSeats.clear();
+      renderAllSeats();
+      updatePanel();
+      showToast('🎉 ¡Reserva confirmada!', 'success');
+    }
+  } catch {
+    showToast('❌ No se pudo conectar al servidor.', 'error');
+  } finally {
+    btnReserve.textContent = 'Confirmar Reserva';
+  }
+});
+
+// ── Toast ────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = '') {
+  clearTimeout(toastTimer);
+  toast.textContent = msg;
+  toast.className = `show ${type}`;
+  toastTimer = setTimeout(() => { toast.className = ''; }, 3500);
+}
+
+// ── Init ─────────────────────────────────────────────────────
+(async function init() {
+  buildGrid();
+  await fetchTaken();   // carga inicial desde el servidor
+  renderAllSeats();
+  updatePanel();
+})();
+</script>
+
+</body>
+</html>
