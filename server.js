@@ -15,7 +15,7 @@ const path    = require('path');
 const mysql   = require('mysql2/promise');
 
 const app  = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -25,12 +25,13 @@ app.use(express.static(path.join(__dirname)));
    Cambia host, user y password según tu instalación local.
    ─────────────────────────────────────────────────────────── */
 const dbConfig = {
-  host:             'localhost',
-  user:             'root',        // ← cambia si tu usuario es diferente
-  password:         '',            // ← pon tu contraseña de MySQL aquí
-  database:         'reservabus',
+  host:             process.env.MYSQLHOST     || 'localhost',
+  user:             process.env.MYSQLUSER     || 'root',
+  password:         process.env.MYSQLPASSWORD || '',
+  database:         process.env.MYSQLDATABASE || 'reservabus',
+  port:             process.env.MYSQLPORT     || 3306,
   waitForConnections: true,
-  connectionLimit:  10,            // máximo 10 usuarios simultáneos
+  connectionLimit:  10,
   queueLimit:       0
 };
 
